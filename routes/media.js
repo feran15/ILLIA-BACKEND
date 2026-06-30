@@ -1,10 +1,16 @@
 const express = require('express');
-const { db } = require('../config/firebase');
 const { requireAuth } = require('../middleware/auth');
 const { Timestamp } = require('firebase-admin/firestore');
-
+const { storage, db } = require('../config/firebase');
+const cloudinary = require('../config/cloudinary')
+const streamifier = require('streamifier');
+const multer = require('multer');
 const router = express.Router();
 
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+})
 function mediaRef(uid) {
   return db.collection('users')
     .doc(uid)
@@ -34,27 +40,34 @@ router.get('/', requireAuth, async (req, res, next) => {
   }
 });
 
+
+
 router.post('/', requireAuth, async (req, res, next) => {
   try {
     const {
-      title,
+      title = 'Untitled',
       file_url,
       media_type,
-      source,
-      prompt,
+      source = 'uploaded',
+      prompt = '',
     } = req.body;
+
+    if (!file_url || !media_type) {
+      return res.status(400).json({
+        error: 'file_url and media_type are required',
+      });
+    }
 
     const item = {
       title,
       file_url,
       media_type,
-      source: source || 'uploaded',
-      prompt: prompt || '',
+      source,
+      prompt,
       created_at: Timestamp.now(),
     };
 
-    const ref = await mediaRef(req.user.uid)
-      .add(item);
+    const ref = await mediaRef(req.user.uid).add(item);
 
     res.status(201).json({
       status: 'success',
@@ -68,6 +81,41 @@ router.post('/', requireAuth, async (req, res, next) => {
     next(err);
   }
 });
+
+router.post( '/upload', requireAuth, upload.single('file'),
+  async (req, res, next) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          error: 'No file uploaded',
+        });
+      }
+
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: `illia/${req.user.uid}`,
+            resource_type: 'auto', // images + videos
+          },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result);
+          }
+        );
+
+        streamifier.createReadStream(req.file.buffer).pipe(stream);
+      });
+
+      res.json({
+        status: 'success',
+        file_url: result.secure_url,
+      });
+
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
