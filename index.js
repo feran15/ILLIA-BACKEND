@@ -11,6 +11,8 @@ const calendarRoutes = require('./routes/calendar');
 const reminderService = require('./services/reminderService');
 const templatesRoutes = require('./routes/templates');
 const mediaRoutes = require('./routes/media');
+const airoutes = require('./routes/ai');
+const contentroutes = require('./routes/content')
 const app  = express();
 const PORT = process.env.PORT || 5000;
 
@@ -61,6 +63,8 @@ app.use('/api/trends',  trendsRoutes);
 app.use('/api/calendar', requireAuth, calendarRoutes);
 app.use('/api/templates', requireAuth, templatesRoutes);
 app.use('/api/media', requireAuth, mediaRoutes);
+app.use('/api/ai', requireAuth, airoutes);
+app.use('/api/content', requireAuth, contentroutes);
 app.use(errorHandler);
 
 reminderService.start();
